@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>교내 편의시설 통합 지도</title>
+<style>
+:root{--navy:#172b4d;--blue:#2864dc;--bg:#f4f6fa;--line:#dce2eb;--muted:#68758a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Arial,"Noto Sans KR",sans-serif;color:#1d2939}
+header{background:var(--navy);color:white;padding:20px 24px}header h1{margin:0;font-size:22px}header p{margin:6px 0 0;color:#d8e2f2;font-size:13px}
+main{max-width:1250px;margin:20px auto;padding:0 16px;display:grid;grid-template-columns:310px 1fr;gap:16px}
+.panel,.workspace{background:white;border:1px solid var(--line);border-radius:14px;box-shadow:0 2px 8px #172b4d0a}
+.panel{padding:16px;height:fit-content}.workspace{padding:16px;min-width:0}
+h2{font-size:16px;margin:0 0 12px}.section{padding-bottom:15px;margin-bottom:15px;border-bottom:1px solid var(--line)}
+label{display:block;font-size:12px;font-weight:700;color:#475467;margin:10px 0 5px}
+input,select,button{font:inherit}input[type=text],select{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:white}
+input[type=file]{width:100%;font-size:12px;margin-top:7px}
+button{border:0;border-radius:8px;padding:10px 12px;background:var(--blue);color:white;font-weight:700;cursor:pointer}
+button.secondary{background:#edf2f8;color:#344054}button.danger{background:#fff0f0;color:#b42318}
+button:disabled{opacity:.45;cursor:not-allowed}.row{display:flex;gap:8px}.row>*{flex:1}
+.small{font-size:12px;color:var(--muted);line-height:1.5}.building-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.building-item{display:flex;justify-content:space-between;align-items:center;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+.building-item button{padding:5px 8px;font-size:11px}
+.building-item>span{min-width:0;overflow-wrap:anywhere;flex:1}.building-actions{display:flex;gap:4px;flex-shrink:0;margin-left:8px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px}
+.toolbar .field{min-width:140px;flex:1}.toolbar label{margin-top:0}
+.floor-control{display:flex;gap:6px;align-items:end}.floor-control select{flex:1;min-width:0}
+#floorSortBtn{white-space:nowrap;padding:10px 11px;font-size:12px;min-width:76px}
+.map-shell{background:#f8fafc;border:1px solid var(--line);border-radius:12px;min-height:430px;display:flex;align-items:center;justify-content:center;overflow:auto;padding:12px}
+#mapStage{position:relative;display:inline-block;max-width:100%;line-height:0;cursor:crosshair}
+#floorImage{display:block;max-width:100%;max-height:68vh;object-fit:contain}
+.pin{position:absolute;transform:translate(-50%,-100%);border:2px solid white;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:17px;line-height:1;background:#fff;box-shadow:0 2px 7px #0005;cursor:pointer}
+.pin span{display:block}.pin.selected{outline:3px solid #f5b000}
+#empty{color:var(--muted);text-align:center;line-height:1.6;padding:45px 12px}
+#results{display:grid;gap:7px;margin-top:10px}
+.result{border:1px solid var(--line);border-radius:9px;padding:9px 10px;display:flex;gap:9px;align-items:center;cursor:pointer}
+.result:hover{border-color:var(--blue);background:#f7f9ff}.symbol{font-size:21px;width:28px;text-align:center}
+.result strong{font-size:13px}.result small{display:block;color:var(--muted);margin-top:3px}
+#pinInfo{margin-top:12px;padding:12px;background:#f7f9fc;border-radius:9px;font-size:13px;display:none}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}.legend span{font-size:12px;color:#475467}
+.status{font-size:12px;color:#067647;margin-top:8px;min-height:16px}
+@media(max-width:800px){main{grid-template-columns:1fr}.panel{order:2}.workspace{order:1}.map-shell{min-height:300px}#floorImage{max-height:60vh}}
+</style>
+</head>
+<body>
+<header><h1>교내 편의시설 통합 지도</h1><p>건물과 층별 도면을 등록하고, 편의시설 위치를 기호로 표시해 보세요.</p></header>
+<main>
+<aside class="panel">
+ <div class="section">
+  <h2>① 건물·층 도면 관리</h2>
+  <label>기존 건물 선택</label>
+  <select id="buildingChoice">
+   <option value="__new__">＋ 새 건물 직접 입력</option>
+  </select>
+  <div id="newBuildingWrap">
+   <label>새 건물 이름</label><input id="buildingName" type="text" placeholder="예: SCH미디어랩스관">
+  </div>
+  <div class="row">
+   <div><label>층수</label><input id="floorName" type="text" placeholder="예: 6층"></div>
+   <div style="display:flex;align-items:end"><button id="addFloorBtn" style="width:100%">도면 추가</button></div>
+  </div>
+  <label>해당 층 도면 이미지 업로드</label><input id="planFile" type="file" accept="image/*">
+  <p class="small">기존 건물을 선택하거나 새 건물 이름을 입력한 뒤 층수를 등록하세요. 같은 건물의 다른 층을 추가할 때는 건물명을 다시 입력하지 않아도 됩니다.</p>
+  <p class="small">등록된 도면의 <b>수정</b> 버튼으로 건물명·층 이름을 변경하고, <b>삭제</b> 버튼으로 해당 층 도면을 삭제할 수 있어요. 삭제하면 해당 층의 핀도 함께 삭제됩니다.</p>
+  <div id="buildingList" class="building-list"></div>
+ </div>
+ <div class="section">
+  <h2>② 편의시설 등록</h2>
+  <p class="small">도면에서 위치를 클릭하면 선택한 기호가 그 자리에 추가됩니다.</p>
+  <label>시설 종류</label>
+  <select id="category">
+   <option value="vending">🥤 자판기</option>
+   <option value="water">💧 정수기</option>
+   <option value="rest">🪑 휴게공간</option>
+   <option value="printer">🖨️ 프린터기</option>
+   <option value="atm">🏧 ATM기</option>
+   <option value="other">🧩 기타</option>
+  </select>
+  <label>시설명 (선택)</label><input id="facilityName" type="text" placeholder="예: 복도 정수기">
+  <p class="small">도면을 클릭해 핀을 추가한 다음, 핀을 눌러 이름을 수정하거나 삭제할 수 있습니다.</p>
+ </div>
+ <div>
+  <h2>③ 전체 시설 검색</h2>
+  <input id="search" type="text" placeholder="시설명 또는 건물·카테고리 검색">
+  <div id="results"></div>
+ </div>
+ <div class="status" id="status"></div>
+</aside>
+<section class="workspace">
+ <div class="toolbar">
+  <div class="field"><label>건물</label><select id="buildingSelect"><option value="">건물 선택</option></select></div>
+  <div class="field"><label>층수</label><div class="floor-control"><select id="floorSelect" disabled><option value="">층 선택</option></select><button type="button" class="secondary" id="floorSortBtn" aria-label="층 정렬 방향 전환">오름차순 ↑</button></div></div>
+  <div class="field"><label>도면 이미지 변경</label><input id="replaceFile" type="file" accept="image/*"></div>
+ </div>
+ <div class="legend">
+  <span>🥤 자판기</span><span>💧 정수기</span><span>🪑 휴게공간</span><span>🖨️ 프린터기</span><span>🏧 ATM기</span><span>🧩 기타</span>
+ </div>
+ <div class="map-shell" id="mapShell">
+  <div id="empty">먼저 왼쪽에서 건물과 층을 추가하고<br>해당 층의 도면 이미지를 업로드해 주세요.</div>
+  <div id="mapStage" hidden><img id="floorImage" alt="층별 도면"><div id="pins"></div></div>
+ </div>
+ <div id="pinInfo"></div>
+ <p class="small">팁: 도면 이미지의 비율을 유지한 상태로 표시합니다. 핀은 도면의 상대 좌표로 저장되므로 화면 크기가 달라져도 위치가 유지됩니다.</p>
+ <p class="small" id="autosaveStatus" role="status" aria-live="polite" style="margin:10px 0 0">자동 저장 준비 중...</p>
+ <div class="row" style="margin-top:12px;max-width:520px">
+  <button class="secondary" id="exportBtn">데이터 백업(JSON)</button>
+  <button class="secondary" id="importBtn">백업 불러오기</button>
+  <button class="danger" id="clearBtn">전체 초기화</button>
+ </div>
+ <input id="importFile" type="file" accept="application/json" hidden>
+</section>
+</main>
+<script>
+const KEY='campusFacilityMap_v2';
+const cats={
+ vending:{label:'자판기',icon:'🥤'},water:{label:'정수기',icon:'💧'},rest:{label:'휴게공간',icon:'🪑'},
+ printer:{label:'프린터기',icon:'🖨️'},atm:{label:'ATM기',icon:'🏧'},
+ other:{label:'기타',icon:'🧩'}
+};
+// 이전 버전 데이터나 예상하지 못한 분류가 있어도 화면 전체가 멈추지 않도록 안전한 분류 정보를 반환합니다.
+function catInfo(cat){return cats[cat]||{label:'기타',icon:'🧩'}};
+// 층 이름을 숫자 기준으로 정렬합니다: 지하층 → 1층 → 2층 ... → 옥상/기타
+function floorOrder(value){
+ const s=String(value||'').trim().toLowerCase().replace(/\s+/g,'');
+ if(/옥상|rooftop/.test(s)) return [3,0,s];
+ const basement=s.match(/(?:지하|b)\s*(\d+)/i);
+ if(basement) return [0,-Number(basement[1]),s];
+ const ground=s.match(/(?:^|[^\d])(\d+)\s*층?/);
+ if(ground) return [1,Number(ground[1]),s];
+ if(/^1f$/.test(s)) return [1,1,s];
+ if(/^2f$/.test(s)) return [1,2,s];
+ return [2,0,s];
+}
+function sortFloors(floors){
+ return [...floors].sort((a,b)=>{
+  const x=floorOrder(a.floor),y=floorOrder(b.floor);
+  return x[0]-y[0] || x[1]-y[1] || x[2].localeCompare(y[2],'ko');
+ });
+}
+let data=JSON.parse(localStorage.getItem(KEY)||'{"floors":[],"pins":[]}');
+let activeFloor=null,selectedPin=null,floorSortDirection='asc';
+const $=id=>document.getElementById(id);
+function updateAutosaveStatus(message,ok=true){
+ const el=$('autosaveStatus');
+ if(!el)return;
+ el.textContent=message;
+ el.style.color=ok?'#067647':'#b42318';
+}
+function writeBrowserSave(){
+ try{
+  localStorage.setItem(KEY,JSON.stringify(data));
+  updateAutosaveStatus('자동 저장됨 · 이 브라우저에 저장됩니다',true);
+  return true;
+ }catch(err){
+  updateAutosaveStatus('자동 저장 실패 · 저장 공간이 부족할 수 있어 JSON 백업이 필요합니다',false);
+  console.error('브라우저 자동 저장 실패:',err);
+  return false;
+ }
+}
+function save(){
+ writeBrowserSave();
+ renderAll();
+}
+// 정기 안전 저장: 변경 즉시 저장하는 기능에 더해 30초마다 한 번 더 저장합니다.
+setInterval(()=>writeBrowserSave(),30000);
+// 탭을 닫거나 새로고침할 때도 마지막 데이터를 한 번 더 저장합니다.
+window.addEventListener('pagehide',()=>writeBrowserSave());
+function say(t){$('status').textContent=t}
+function floorObj(){return data.floors.find(f=>f.id===activeFloor)}
+function renderBuildingChoice(selected=''){
+ const names=[...new Set(data.floors.map(f=>f.building))].sort((a,b)=>a.localeCompare(b,'ko'));
+ $('buildingChoice').innerHTML='<option value="__new__">＋ 새 건물 직접 입력</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+ $('buildingChoice').value=names.includes(selected)?selected:'__new__';
+ $('newBuildingWrap').hidden=$('buildingChoice').value!=='__new__';
+}
+function addFloor(){
+ const choice=$('buildingChoice').value;
+ const b=(choice==='__new__' ? $('buildingName').value : choice).trim();
+ const fl=$('floorName').value.trim();
+ if(!b||!fl){say('건물과 층수를 모두 선택하거나 입력해 주세요.');return}
+ let f=data.floors.find(x=>x.building===b&&x.floor===fl);
+ if(!f){f={id:crypto.randomUUID(),building:b,floor:fl,image:null};data.floors.push(f)}
+ activeFloor=f.id;$('buildingName').value='';$('floorName').value='';
+ save();renderBuildingChoice(b);
+ say('도면 항목을 추가했어요. 같은 건물의 다른 층도 이어서 추가할 수 있어요.')
+}
+function upload(file,replace=false){
+ const f=floorObj();if(!f){say('먼저 건물과 층을 선택해 주세요.');return}
+ if(!file)return;
+ const reader=new FileReader();reader.onload=()=>{f.image=reader.result;save();say('도면 이미지를 등록했어요.')};reader.readAsDataURL(file)
+}
+function renderAll(){renderBuildingChoice(floorObj()?.building||$('buildingChoice')?.value);renderSelectors();renderBuildingList();renderMap();renderResults()}
+function renderSelectors(){
+ const buildings=[...new Set(data.floors.map(f=>f.building))];
+ $('buildingSelect').innerHTML='<option value="">건물 선택</option>'+buildings.map(b=>`<option>${esc(b)}</option>`).join('');
+ const f=floorObj();if(f){$('buildingSelect').value=f.building}
+ const floors=sortFloors(data.floors.filter(x=>x.building===$('buildingSelect').value));
+  if(floorSortDirection==='desc') floors.reverse();
+ $('floorSelect').innerHTML='<option value="">층 선택</option>'+floors.map(x=>`<option value="${x.id}">${esc(x.floor)}</option>`).join('');
+ $('floorSelect').disabled=!buildings.length;
+ if(f){$('floorSelect').value=f.id}else if(floors.length){$('floorSelect').value=floors[0].id;activeFloor=floors[0].id}
+}
+function renderBuildingList(){
+ $('buildingList').innerHTML=[...data.floors].sort((a,b)=>a.building.localeCompare(b.building,'ko')||floorOrder(a.floor)[0]-floorOrder(b.floor)[0]||floorOrder(a.floor)[1]-floorOrder(b.floor)[1]).map(f=>`<div class="building-item"><span>${esc(f.building)} · ${esc(f.floor)}</span><div class="building-actions"><button class="secondary" data-open="${f.id}">열기</button><button class="secondary" data-edit-floor="${f.id}">수정</button><button class="danger" data-delete-floor="${f.id}">삭제</button></div></div>`).join('');
+ document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{activeFloor=b.dataset.open;selectedPin=null;$('pinInfo').style.display='none';renderAll()});
+ document.querySelectorAll('[data-edit-floor]').forEach(b=>b.onclick=()=>{
+  const f=data.floors.find(x=>x.id===b.dataset.editFloor);if(!f)return;
+  const building=prompt('건물 이름을 수정하세요.',f.building);if(building===null)return;
+  const floor=prompt('층/도면 이름을 수정하세요.',f.floor);if(floor===null)return;
+  const newBuilding=building.trim(),newFloor=floor.trim();
+  if(!newBuilding||!newFloor){say('건물 이름과 층 이름은 비워둘 수 없어요.');return}
+  if(data.floors.some(x=>x.id!==f.id&&x.building===newBuilding&&x.floor===newFloor)){say('같은 건물에 동일한 층 이름이 이미 있어요.');return}
+  f.building=newBuilding;f.floor=newFloor;activeFloor=f.id;save();say('도면 이름을 수정했어요. 기존 이미지와 핀은 유지됩니다.');
+ });
+ document.querySelectorAll('[data-delete-floor]').forEach(b=>b.onclick=()=>{
+  const f=data.floors.find(x=>x.id===b.dataset.deleteFloor);if(!f)return;
+  const count=data.pins.filter(p=>p.floorId===f.id).length;
+  if(!confirm(`${f.building} · ${f.floor} 도면을 삭제할까요?\n이 도면에 등록된 핀 ${count}개도 함께 삭제되며 되돌릴 수 없습니다.`))return;
+  data.floors=data.floors.filter(x=>x.id!==f.id);
+  data.pins=data.pins.filter(p=>p.floorId!==f.id);
+  if(activeFloor===f.id)activeFloor=data.floors[0]?.id||null;
+  selectedPin=null;$('pinInfo').style.display='none';save();say('도면과 해당 층의 핀을 삭제했어요.');
+ });
+}
+function renderMap(){
+ const f=floorObj(),stage=$('mapStage'),empty=$('empty');
+ // 도면이 없는 층으로 이동하면 이전 층의 핀 DOM도 비워 오래된 핀이 남아 보이지 않게 합니다.
+ if(!f||!f.image){$('pins').innerHTML='';stage.hidden=true;empty.hidden=false;empty.textContent=f?'이 층의 도면 이미지가 아직 없어요. 위에서 이미지를 업로드해 주세요.':'건물과 층을 선택하거나 추가해 주세요.';return}
+ empty.hidden=true;stage.hidden=false;$('floorImage').src=f.image;
+ $('pins').innerHTML=data.pins.filter(p=>p.floorId===f.id).map(p=>{const c=catInfo(p.cat);return `<button class="pin ${selectedPin===p.id?'selected':''}" title="${esc(p.name||c.label)}" style="left:${p.x*100}%;top:${p.y*100}%;" data-pin="${p.id}"><span>${c.icon}</span></button>`}).join('');
+ document.querySelectorAll('[data-pin]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();showPin(btn.dataset.pin)})
+}
+function renderResults(){
+ const q=$('search').value.trim().toLowerCase();
+ const list=data.pins.filter(p=>{const f=data.floors.find(x=>x.id===p.floorId),c=catInfo(p.cat);return f&&(!q||[p.name,c.label,f.building,f.floor].join(' ').toLowerCase().includes(q))});
+ $('results').innerHTML=list.map(p=>{const f=data.floors.find(x=>x.id===p.floorId),c=catInfo(p.cat);return `<div class="result" data-result="${p.id}"><div class="symbol">${c.icon}</div><div><strong>${esc(p.name||c.label)}</strong><small>${esc(f.building)} · ${esc(f.floor)} · ${c.label}</small></div></div>`}).join('')||'<p class="small">검색 결과가 없습니다.</p>';
+ document.querySelectorAll('[data-result]').forEach(el=>el.onclick=()=>{const p=data.pins.find(x=>x.id===el.dataset.result);activeFloor=p.floorId;selectedPin=p.id;renderAll();showPin(p.id)})
+}
+function showPin(id){
+ const p=data.pins.find(x=>x.id===id);if(!p)return;
+ selectedPin=id;const f=data.floors.find(x=>x.id===p.floorId),c=catInfo(p.cat);renderMap();
+ const box=$('pinInfo');box.style.display='block';
+ box.innerHTML=`<strong>${c.icon} ${esc(p.name||c.label)}</strong><p class="small">${esc(f.building)} · ${esc(f.floor)} / ${c.label}</p><div class="row"><button class="secondary" id="renamePin">이름 수정</button><button class="danger" id="deletePin">핀 삭제</button></div>`;
+ $('renamePin').onclick=()=>{const n=prompt('시설명을 입력하세요.',p.name||c.label);if(n!==null){p.name=n.trim();save();showPin(id)}};
+ $('deletePin').onclick=()=>{if(confirm('이 핀을 삭제할까요?')){data.pins=data.pins.filter(x=>x.id!==id);selectedPin=null;box.style.display='none';save()}};
+}
+$('addFloorBtn').onclick=addFloor;
+$('buildingChoice').onchange=()=>{const isNew=$('buildingChoice').value==='__new__';$('newBuildingWrap').hidden=!isNew;if(!isNew)$('buildingName').value='';};
+$('planFile').onchange=e=>upload(e.target.files[0]);
+$('replaceFile').onchange=e=>upload(e.target.files[0],true);
+$('buildingSelect').onchange=()=>{const fs=sortFloors(data.floors.filter(f=>f.building===$('buildingSelect').value));activeFloor=fs[0]?.id||null;selectedPin=null;$('pinInfo').style.display='none';renderAll()};
+$('floorSelect').onchange=e=>{activeFloor=e.target.value||null;selectedPin=null;$('pinInfo').style.display='none';renderAll()};
+$('floorSortBtn').onclick=()=>{
+ floorSortDirection=floorSortDirection==='asc'?'desc':'asc';
+ $('floorSortBtn').textContent=floorSortDirection==='asc'?'오름차순 ↑':'내림차순 ↓';
+ renderSelectors();
+};
+$('search').oninput=renderResults;
+$('mapStage').onclick=e=>{
+ const f=floorObj();if(!f||!f.image)return;
+ const r=$('floorImage').getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+ if(x<0||x>1||y<0||y>1)return;
+ const cat=$('category').value,name=$('facilityName').value.trim();
+ const p={id:crypto.randomUUID(),floorId:f.id,cat,name,x,y};data.pins.push(p);$('facilityName').value='';selectedPin=p.id;save();showPin(p.id)
+};
+$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});download(blob,'campus-facility-backup.json')};
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href)}
+$('importBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.floors)||!Array.isArray(d.pins))throw 0;data=d;activeFloor=data.floors[0]?.id||null;save();say('백업을 불러왔어요.')}catch{say('올바른 백업 파일이 아닙니다.')}};r.readAsText(file)};
+$('clearBtn').onclick=()=>{if(confirm('등록한 건물, 도면, 핀을 모두 삭제할까요?')){data={floors:[],pins:[]};activeFloor=null;selectedPin=null;localStorage.removeItem(KEY);$('pinInfo').style.display='none';renderAll();say('초기화했어요.')}};
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+renderAll();
+updateAutosaveStatus('자동 저장 사용 중 · 변경 즉시 + 30초마다 이 브라우저에 저장',true);
+</script>
+</body></html>
